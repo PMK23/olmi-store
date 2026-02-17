@@ -1,0 +1,6 @@
+python-telegram-bot
+mistralai
+flask
+flask-cors
+requests
+keep-alive

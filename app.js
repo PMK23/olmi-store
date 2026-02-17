@@ -16,56 +16,41 @@ const state = {
 // АВТОРИЗАЦИЯ ЧЕРЕЗ TELEGRAM
 // ============================================
 function initTelegramUser() {
-    // Получаем данные пользователя из Telegram
     const tgUser = tg.initDataUnsafe?.user;
 
     if (tgUser) {
-        // Пользователь авторизован через Telegram
         state.user = {
             id: tgUser.id,
             firstName: tgUser.first_name,
             lastName: tgUser.last_name || '',
             username: tgUser.username || '',
             languageCode: tgUser.language_code || 'ru',
-            isPremium: tgUser.is_premium || false,
-            photoUrl: tgUser.photo_url || null,
             authType: 'telegram',
-            registered: true,
-            loginDate: new Date().toLocaleString()
+            registered: true
         };
-        // Сохраняем в localStorage для следующих сессий
         localStorage.setItem('olmi_user', JSON.stringify(state.user));
-        console.log('✅ Авторизован через Telegram:', state.user.firstName);
         showToast(`👋 Добро пожаловать, ${state.user.firstName}!`);
     } else {
-        // Пробуем загрузить сохраненного пользователя
         const savedUser = localStorage.getItem('olmi_user');
         if (savedUser) {
             state.user = JSON.parse(savedUser);
-            console.log('✅ Загружен сохраненный пользователь:', state.user.firstName);
-            showToast(`👋 С возвращением, ${state.user.firstName}!`);
         } else {
-            // Создаем гостевого пользователя (на случай, если открыли не в Telegram)
             state.user = {
                 id: 'guest_' + Math.random().toString(36).substr(2, 9),
                 firstName: 'Гость',
                 lastName: '',
                 authType: 'guest',
-                registered: false,
-                firstVisit: new Date().toLocaleString()
+                registered: false
             };
-            console.log('👤 Гостевой режим');
-            showToast('👋 Добро пожаловать!');
+            localStorage.setItem('olmi_user', JSON.stringify(state.user));
         }
     }
     updateUserInterface();
 }
 
-// Обновление интерфейса пользователя (иконка профиля)
 function updateUserInterface() {
     const profileBtn = document.getElementById('profileBtn');
     if (profileBtn && state.user?.authType === 'telegram') {
-        // Показываем первую букву имени
         profileBtn.innerHTML = state.user.firstName.charAt(0).toUpperCase();
     }
 }
@@ -78,18 +63,14 @@ async function loadData() {
         const response = await fetch('products.json');
         const data = await response.json();
 
-        // Загружаем товары
         state.products = data.products.map(product => {
-            // Генерируем цену на основе названия (для демо)
             const hash = product.name.split('').reduce((a, b) => a + b.charCodeAt(0), 0);
             const price = 500 + (hash % 9500);
-
-            // Находим категорию для изображения
             const category = data.categories.find(c => c.url === product.category_url);
 
             return {
                 ...product,
-                price: Math.round(price / 100) * 100, // Округляем до сотен
+                price: Math.round(price / 100) * 100,
                 image: category?.image_url || product.image_url || 'https://via.placeholder.com/200'
             };
         });
@@ -108,8 +89,6 @@ async function loadData() {
 // ============================================
 function renderProducts() {
     const grid = document.getElementById('productsGrid');
-
-    // Фильтруем по поиску
     let filteredProducts = [...state.products];
 
     if (state.searchQuery) {
@@ -131,7 +110,6 @@ function renderProducts() {
     }
 
     grid.innerHTML = filteredProducts.map(product => {
-        // Обрезаем название
         const shortName = product.name.length > 50
             ? product.name.substring(0, 50) + '...'
             : product.name;
@@ -338,7 +316,7 @@ window.removeFromCart = function(productUrl) {
 };
 
 // ============================================
-// ОФОРМЛЕНИЕ ЗАКАЗА
+// ОФОРМЛЕНИЕ ЗАКАЗА (отправка в бота)
 // ============================================
 function checkout() {
     if (state.cart.length === 0) {
@@ -351,13 +329,18 @@ function checkout() {
     const order = {
         id: 'ORD' + Date.now().toString().slice(-8),
         date: new Date().toLocaleString(),
-        items: [...state.cart],
+        items: state.cart.map(item => ({
+            name: item.name,
+            quantity: item.quantity,
+            price: item.price,
+            total: item.price * item.quantity
+        })),
         total: total
     };
 
     state.orders.push(order);
 
-    // Отправка данных в Telegram Bot
+    // Отправляем заказ в Telegram бота
     tg.sendData(JSON.stringify({
         action: 'new_order',
         order: order,
@@ -370,8 +353,8 @@ function checkout() {
     saveCart();
     document.getElementById('cartModal').style.display = 'none';
 
-    // Сообщение о менеджере (единое для всех)
-    showToast('✅ Заказ оформлен! Менеджер свяжется с вами');
+    // Показываем уведомление
+    showToast('✅ Заказ отправлен! Менеджер Алексей свяжется с вами');
 }
 
 // ============================================
